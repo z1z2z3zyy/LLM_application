@@ -34,7 +34,7 @@ if __name__=="__main__":
         streaming=True,
         model="qwen-plus"
     )
-    tool = TavilySearch(max_results=2,tavily_api_key="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")
+    tool = TavilySearch(max_results=2,tavily_api_key=os.getenv("TAVILY_API_KEY"))
     tools = [tool,multiply]
     llm_with_tools=llm.bind_tools(tools)
     tool_node = ToolNode(tools=[tool,multiply])
