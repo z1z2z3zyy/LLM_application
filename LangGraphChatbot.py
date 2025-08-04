@@ -7,6 +7,8 @@ from langchain_community.chat_models.tongyi import ChatTongyi
 from dotenv import load_dotenv
 from langchain_tavily import TavilySearch
 import os
+from langgraph.checkpoint.memory import MemorySaver
+
 
 from langgraph.prebuilt import ToolNode, tools_condition
 
@@ -17,10 +19,11 @@ class State(TypedDict):
 def chatbot(state:State):
     return {"messages":[llm_with_tools.invoke(state["messages"])]}
 
-def stream_graph_updates(user_input: str):
-    for event in graph.stream({"messages": [{"role": "user", "content": user_input}]}):
-        for value in event.values():
-            print("Assistant:", value["messages"][-1].content)
+def stream_graph_updates(user_input: str,config):
+    for event in graph.stream({"messages": [{"role": "user", "content": user_input}]},config,stream_mode="values",):
+        # for value in event.values():
+        #     print("Assistant:", value["messages"][-1].content)
+        event["messages"][-1].pretty_print()
 
 @tool
 def multiply(first_int: int, second_int: int) -> int:
@@ -34,7 +37,7 @@ if __name__=="__main__":
         streaming=True,
         model="qwen-plus"
     )
-    tool = TavilySearch(max_results=2,tavily_api_key=os.getenv("TAVILY_API_KEY"))
+    tool = TavilySearch(max_results=2,tavily_api_key="")
     tools = [tool,multiply]
     llm_with_tools=llm.bind_tools(tools)
     tool_node = ToolNode(tools=[tool,multiply])
@@ -47,19 +50,22 @@ if __name__=="__main__":
     graph_builder.add_edge(START, "chatbot")
     graph_builder.add_edge("tools", "chatbot")
     graph_builder.add_edge("chatbot", END)
-    graph = graph_builder.compile()
+    memory = MemorySaver()
+    config = {"configurable": {"thread_id": "1"}}
+    graph = graph_builder.compile(checkpointer=memory)
+
     while True:
         try:
             user_input = input("User: ")
             if user_input.lower() in ["quit", "exit", "q"]:
                 print("Goodbye!")
                 break
-            stream_graph_updates(user_input)
+            stream_graph_updates(user_input,config)
         except:
             # fallback if input() is not available
             user_input = "What do you know about LangGraph?"
             print("User: " + user_input)
-            stream_graph_updates(user_input)
+            stream_graph_updates(user_input,config)
             break
 
 
